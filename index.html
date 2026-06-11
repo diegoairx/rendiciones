@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rendiciones de Compras · Ngenco / Soil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --txt:#e8ebf0; --muted:#9aa3b2; --brand:#2f6df6; --brand2:#1e4fd1;
+    --green:#16a34a; --green-bg:#0e2a1a; --amber:#d98a00; --amber-bg:#2a2110;
+    --red:#e5484d; --radius:14px; --shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Inter',system-ui,sans-serif;background:
+    radial-gradient(1200px 600px at 80% -10%, #1b2030 0%, transparent 60%),
+    var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased}
+  a{color:var(--brand)}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 80px}
+  header.topbar{display:flex;align-items:center;gap:14px;padding:6px 2px 18px}
+  .logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,var(--brand),#5b8bff);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;box-shadow:var(--shadow)}
+  .brand h1{font-size:17px;margin:0;letter-spacing:.2px}
+  .brand p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+  .spacer{flex:1}
+  .pill{font-size:11px;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:999px}
+
+  .tabs{display:flex;gap:6px;background:var(--panel);padding:6px;border-radius:12px;border:1px solid var(--line);margin-bottom:18px;position:sticky;top:10px;z-index:20;backdrop-filter:blur(8px)}
+  .tab{flex:1;text-align:center;padding:11px 8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted);user-select:none;transition:.15s}
+  .tab.active{background:var(--brand);color:#fff;box-shadow:0 4px 14px rgba(47,109,246,.4)}
+  .tab:hover:not(.active){color:var(--txt);background:var(--panel2)}
+
+  .grid{display:grid;gap:14px}
+  .kpis{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .kpi h3{margin:0;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  .kpi .val{font-size:24px;font-weight:800;margin-top:8px}
+  .kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
+  .kpi.pend .val{color:var(--amber)} .kpi.trans .val{color:var(--green)}
+
+  .section-title{font-size:15px;font-weight:700;margin:6px 2px 12px;display:flex;align-items:center;gap:8px}
+  .muted{color:var(--muted)}
+
+  label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:0 0 6px}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    padding:11px 12px;border-radius:10px;font-size:14px;font-family:inherit;outline:none;transition:.15s}
+  input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,109,246,.15)}
+  textarea{resize:vertical;min-height:64px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.form-grid{grid-template-columns:1fr}}
+  .full{grid-column:1/-1}
+  .btn{background:var(--brand);color:#fff;border:none;padding:12px 18px;border-radius:10px;font-weight:700;
+    font-size:14px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px}
+  .btn:hover{background:var(--brand2)} .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .btn.ghost:hover{background:var(--panel2)}
+  .btn.green{background:var(--green)} .btn.green:hover{filter:brightness(1.1)}
+  .btn.sm{padding:8px 12px;font-size:13px}
+
+  .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel2)}
+  .dropzone:hover{border-color:var(--brand);background:#1b2230}
+  .dropzone.has{padding:8px}
+  .dropzone img{max-height:180px;border-radius:8px;display:block;margin:0 auto}
+
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+  .filters>div{flex:1;min-width:140px}
+
+  .rec{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;gap:14px;align-items:flex-start}
+  .rec .thumb{width:70px;height:70px;border-radius:10px;object-fit:cover;background:var(--panel2);border:1px solid var(--line);cursor:pointer;flex-shrink:0}
+  .rec .thumb.placeholder{display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--muted)}
+  .rec .info{flex:1;min-width:0}
+  .rec .info .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .rec .monto{font-size:18px;font-weight:800;white-space:nowrap}
+  .rec .meta{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.5}
+  .rec .name{font-weight:700;font-size:15px}
+  .rec .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;display:inline-block}
+  .badge.pend{background:var(--amber-bg);color:var(--amber);border:1px solid #5a4410}
+  .badge.trans{background:var(--green-bg);color:#4ade80;border:1px solid #1c5132}
+
+  .empty{text-align:center;padding:50px 20px;color:var(--muted)}
+  .empty .ico{font-size:40px;margin-bottom:10px}
+
+  /* modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100;padding:18px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:460px;width:100%;padding:22px;box-shadow:var(--shadow);max-height:92vh;overflow:auto}
+  .modal h3{margin:0 0 14px}
+  .modal img.full{width:100%;border-radius:10px}
+  .x{position:absolute;top:18px;right:18px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);
+    padding:13px 18px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:var(--shadow);z-index:200;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1}
+  .toast.ok{border-color:var(--green)} .toast.err{border-color:var(--red)}
+  .bars{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+  .bar-row{display:grid;grid-template-columns:130px 1fr auto;gap:10px;align-items:center;font-size:13px}
+  .bar-track{background:var(--panel2);border-radius:999px;height:10px;overflow:hidden}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--brand),#5b8bff);border-radius:999px}
+  .hide{display:none!important}
+  .row-split{display:flex;gap:10px} .row-split>*{flex:1}
+
+  /* login */
+  #loginScreen{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;padding:18px;
+    background:radial-gradient(900px 500px at 50% -10%, #1b2030 0%, transparent 60%), var(--bg)}
+  .login-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:30px 26px;max-width:380px;width:100%;box-shadow:var(--shadow)}
+  .login-card .logo{margin:0 auto 14px}
+  .login-card h2{text-align:center;margin:0 0 4px;font-size:20px}
+  .login-card p.sub{text-align:center;color:var(--muted);font-size:13px;margin:0 0 22px}
+  .login-card label{margin-top:14px}
+  .login-err{color:var(--red);font-size:13px;margin-top:12px;text-align:center;min-height:18px}
+  .usermenu{display:flex;align-items:center;gap:10px}
+  .usermenu .email{font-size:12px;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="logo">N</div>
+    <h2>Rendiciones de Compras</h2>
+    <p class="sub">Ngenco SpA · Soil Limitada</p>
+    <form id="formLogin">
+      <label>Correo</label>
+      <input id="loginEmail" type="email" placeholder="tu@correo.cl" autocomplete="username" required>
+      <label>Contraseña</label>
+      <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password" required>
+      <div class="login-err" id="loginErr"></div>
+      <button class="btn" id="btnLogin" style="width:100%;justify-content:center;margin-top:8px">Ingresar</button>
+    </form>
+    <p class="sub" style="margin:16px 0 0;font-size:11px">Acceso solo para usuarios autorizados.</p>
+  </div>
+</div>
+
+<div class="wrap" id="appWrap" style="display:none">
+  <header class="topbar">
+    <div class="logo">N</div>
+    <div class="brand">
+      <h1>Rendiciones de Compras</h1>
+      <p>Ngenco SpA · Soil Limitada — Control de boletas y devoluciones</p>
+    </div>
+    <div class="spacer"></div>
+    <div class="usermenu">
+      <span class="email" id="userEmail"></span>
+      <button class="btn ghost sm" id="btnPass" title="Cambiar contraseña">🔑</button>
+      <button class="btn ghost sm" id="btnLogout">Salir</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="dash">📊 Resumen</div>
+    <div class="tab" data-tab="nuevo">➕ Nuevo registro</div>
+    <div class="tab" data-tab="lista">📋 Registros</div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <section id="tab-dash">
+    <div class="grid kpis" style="margin-bottom:16px">
+      <div class="card kpi pend"><h3>Por devolver</h3><div class="val" id="kpiPendMonto">—</div><div class="sub" id="kpiPendCount">—</div></div>
+      <div class="card kpi trans"><h3>Devuelto</h3><div class="val" id="kpiTransMonto">—</div><div class="sub" id="kpiTransCount">—</div></div>
+      <div class="card kpi"><h3>Total registrado</h3><div class="val" id="kpiTotMonto">—</div><div class="sub" id="kpiTotCount">—</div></div>
+      <div class="card kpi"><h3>Supervisores</h3><div class="val" id="kpiSup">—</div><div class="sub">con compras activas</div></div>
+    </div>
+    <div class="card">
+      <div class="section-title">💰 Pendiente de devolución por supervisor</div>
+      <div class="bars" id="barsSup"><div class="muted">Cargando…</div></div>
+    </div>
+  </section>
+
+  <!-- NUEVO -->
+  <section id="tab-nuevo" class="hide">
+    <div class="card">
+      <div class="section-title">➕ Registrar nueva compra</div>
+      <form id="formNuevo">
+        <div class="form-grid">
+          <div>
+            <label>Supervisor *</label>
+            <input list="supervisores" id="fNombre" placeholder="Nombre del supervisor" required>
+            <datalist id="supervisores"></datalist>
+          </div>
+          <div>
+            <label>Teléfono personal *</label>
+            <input id="fTelefono" placeholder="+569 1234 5678" required>
+          </div>
+          <div>
+            <label>Monto (CLP) *</label>
+            <input id="fMonto" inputmode="numeric" placeholder="$ 0" required>
+          </div>
+          <div>
+            <label>Fecha de compra *</label>
+            <input type="date" id="fFecha" required>
+          </div>
+          <div>
+            <label>Tipo de documento</label>
+            <select id="fTipo"><option value="boleta">Boleta</option><option value="factura">Factura</option></select>
+          </div>
+          <div>
+            <label>N° documento</label>
+            <input id="fNumDoc" placeholder="Ej: 0012345">
+          </div>
+          <div class="full">
+            <label>Proveedor / comercio</label>
+            <input id="fProveedor" placeholder="Ej: Sodimac, Copec, Ferretería…">
+          </div>
+          <div class="full">
+            <label>Descripción de la compra</label>
+            <textarea id="fDesc" placeholder="Qué se compró y para qué obra / fin"></textarea>
+          </div>
+          <div class="full">
+            <label>Foto de la boleta / factura</label>
+            <div class="dropzone" id="dropFoto">
+              <div id="dropMsg">📷 Toca para tomar foto o subir imagen</div>
+              <input type="file" id="fFoto" accept="image/*" capture="environment" class="hide">
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px">
+          <button type="submit" class="btn" id="btnGuardar">Guardar registro</button>
+          <button type="reset" class="btn ghost" id="btnLimpiar">Limpiar</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- LISTA -->
+  <section id="tab-lista" class="hide">
+    <div class="card" style="margin-bottom:14px">
+      <div class="filters">
+        <div><label>Estado</label><select id="filtEstado"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="transferido">Transferido</option></select></div>
+        <div><label>Supervisor</label><select id="filtSup"><option value="">Todos</option></select></div>
+        <div><label>Buscar</label><input id="filtTexto" placeholder="Proveedor, descripción, n°…"></div>
+        <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost sm" id="btnRefrescar">↻ Actualizar</button></div>
+      </div>
+    </div>
+    <div class="grid" id="listaRecs"><div class="muted">Cargando…</div></div>
+  </section>
+</div>
+
+<!-- modal foto -->
+<div class="modal-bg" id="modalFoto"><div class="modal" style="position:relative"><button class="btn ghost sm x" onclick="closeModal('modalFoto')">✕</button><h3>Comprobante</h3><img class="full" id="modalImg" src=""></div></div>
+
+<!-- modal transferir -->
+<div class="modal-bg" id="modalTrans"><div class="modal" style="position:relative">
+  <button class="btn ghost sm x" onclick="closeModal('modalTrans')">✕</button>
+  <h3>Marcar como devuelto</h3>
+  <p class="muted" id="transInfo" style="margin-top:-6px;font-size:13px"></p>
+  <label>Fecha de transferencia</label>
+  <input type="date" id="tFecha">
+  <label style="margin-top:12px">Comprobante de transferencia (opcional)</label>
+  <div class="dropzone" id="dropComp"><div id="dropCompMsg">📎 Subir comprobante</div><input type="file" id="tComp" accept="image/*,application/pdf" class="hide"></div>
+  <label style="margin-top:12px">Notas (opcional)</label>
+  <textarea id="tNotas" placeholder="Ej: transferido a cuenta Banco Estado…"></textarea>
+  <div style="margin-top:16px;display:flex;gap:10px">
+    <button class="btn green" id="btnConfirmTrans">Confirmar devolución</button>
+    <button class="btn ghost" onclick="closeModal('modalTrans')">Cancelar</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://dorshinrvqppaxvzskor.supabase.co";
+const SUPABASE_KEY = "sb_publishable_S2xIOed_yypqa2JfoQdhFA_aKyIrZo5";
+const BUCKET = "comprobantes";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let RECS = [];
+const $ = s => document.querySelector(s);
+const fmtCLP = n => "$ " + Math.round(Number(n||0)).toLocaleString("es-CL");
+const fmtDate = d => d ? new Date(d+"T00:00:00").toLocaleDateString("es-CL",{day:"2-digit",month:"short",year:"numeric"}) : "—";
+
+function toast(msg, type){const t=$("#toast");t.textContent=msg;t.className="toast show "+(type||"");setTimeout(()=>t.className="toast",2600);}
+function closeModal(id){$("#"+id).classList.remove("show");}
+
+// tabs
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  ["dash","nuevo","lista"].forEach(n=>$("#tab-"+n).classList.add("hide"));
+  $("#tab-"+t.dataset.tab).classList.remove("hide");
+});
+
+// foto picker (nuevo)
+let fotoFile=null;
+$("#dropFoto").onclick=()=>$("#fFoto").click();
+$("#fFoto").onchange=e=>{
+  fotoFile=e.target.files[0];
+  if(!fotoFile)return;
+  const url=URL.createObjectURL(fotoFile);
+  $("#dropFoto").classList.add("has");
+  $("#dropMsg").innerHTML=`<img src="${url}"><div class="muted" style="margin-top:8px;font-size:12px">${fotoFile.name} — toca para cambiar</div>`;
+};
+
+// comprobante picker (transferir)
+let compFile=null;
+$("#dropComp").onclick=()=>$("#tComp").click();
+$("#tComp").onchange=e=>{compFile=e.target.files[0];if(compFile)$("#dropCompMsg").textContent="📎 "+compFile.name;};
+
+// monto formatting
+$("#fMonto").oninput=e=>{
+  let v=e.target.value.replace(/[^\d]/g,"");
+  e.target.value=v?"$ "+Number(v).toLocaleString("es-CL"):"";
+};
+function parseMonto(s){return Number((s||"").replace(/[^\d]/g,""))||0;}
+
+// default fecha
+$("#fFecha").value=new Date().toISOString().slice(0,10);
+
+async function uploadFile(file, prefix){
+  const ext=(file.name.split(".").pop()||"jpg").toLowerCase();
+  const path=`${prefix}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const {error}=await sb.storage.from(BUCKET).upload(path,file,{upsert:false});
+  if(error)throw error;
+  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+// crear registro
+$("#formNuevo").onsubmit=async e=>{
+  e.preventDefault();
+  const btn=$("#btnGuardar");btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    let foto_url=null;
+    if(fotoFile) foto_url=await uploadFile(fotoFile,"boletas");
+    const row={
+      supervisor_nombre:$("#fNombre").value.trim(),
+      supervisor_telefono:$("#fTelefono").value.trim(),
+      proveedor:$("#fProveedor").value.trim()||null,
+      tipo_documento:$("#fTipo").value,
+      numero_documento:$("#fNumDoc").value.trim()||null,
+      monto:parseMonto($("#fMonto").value),
+      fecha_compra:$("#fFecha").value,
+      descripcion:$("#fDesc").value.trim()||null,
+      foto_url, estado:"pendiente"
+    };
+    const {error}=await sb.from("rendiciones").insert(row);
+    if(error)throw error;
+    toast("✓ Registro guardado","ok");
+    $("#formNuevo").reset();fotoFile=null;
+    $("#dropFoto").classList.remove("has");
+    $("#dropMsg").innerHTML="📷 Toca para tomar foto o subir imagen";
+    $("#fFecha").value=new Date().toISOString().slice(0,10);
+    await load();
+    document.querySelector('.tab[data-tab="lista"]').click();
+  }catch(err){console.error(err);toast("Error: "+(err.message||err),"err");}
+  btn.disabled=false;btn.textContent="Guardar registro";
+};
+
+// transferir
+let transId=null;
+function openTrans(id){
+  const r=RECS.find(x=>x.id===id);transId=id;compFile=null;
+  $("#transInfo").textContent=`${r.supervisor_nombre} · ${fmtCLP(r.monto)} · ${r.proveedor||"—"}`;
+  $("#tFecha").value=new Date().toISOString().slice(0,10);
+  $("#tNotas").value="";$("#dropCompMsg").textContent="📎 Subir comprobante";
+  $("#modalTrans").classList.add("show");
+}
+$("#btnConfirmTrans").onclick=async()=>{
+  const btn=$("#btnConfirmTrans");btn.disabled=true;btn.textContent="Procesando…";
+  try{
+    let comprobante_url=null;
+    if(compFile) comprobante_url=await uploadFile(compFile,"transferencias");
+    // Llama a la función que actualiza Supabase Y propaga a AppSheet (para que el móvil lo vea)
+    const {data:fn,error}=await sb.functions.invoke("marcar-transferido",{body:{
+      id:transId,
+      fecha_transferencia:$("#tFecha").value||null,
+      comprobante_url:comprobante_url,
+      notas:$("#tNotas").value.trim()||null
+    }});
+    if(error)throw error;
+    if(fn&&fn.appsheetOk===false) toast("Devolución registrada (aviso: la sincronización al móvil falló)","err");
+    else toast("✓ Devolución registrada y enviada al móvil","ok");
+    closeModal("modalTrans");await load();
+  }catch(err){console.error(err);toast("Error: "+(err.message||err),"err");}
+  btn.disabled=false;btn.textContent="Confirmar devolución";
+};
+
+async function revertir(id){
+  if(!confirm("¿Volver a marcar como PENDIENTE?"))return;
+  const {error}=await sb.from("rendiciones").update({estado:"pendiente",fecha_transferencia:null}).eq("id",id);
+  if(error){toast("Error: "+error.message,"err");return;}
+  toast("Marcado pendiente","ok");await load();
+}
+async function eliminar(id){
+  if(!confirm("¿Eliminar este registro definitivamente?"))return;
+  const {error}=await sb.from("rendiciones").delete().eq("id",id);
+  if(error){toast("Error: "+error.message,"err");return;}
+  toast("Registro eliminado","ok");await load();
+}
+
+function showFoto(url){$("#modalImg").src=url;$("#modalFoto").classList.add("show");}
+
+function render(){
+  // filtros
+  const fe=$("#filtEstado").value, fs=$("#filtSup").value, ft=$("#filtTexto").value.toLowerCase();
+  let list=RECS.filter(r=>
+    (!fe||r.estado===fe)&&(!fs||r.supervisor_nombre===fs)&&
+    (!ft||[r.proveedor,r.descripcion,r.numero_documento,r.supervisor_nombre].join(" ").toLowerCase().includes(ft)));
+
+  const cont=$("#listaRecs");
+  if(!list.length){cont.innerHTML='<div class="empty"><div class="ico">📭</div>Sin registros para los filtros actuales</div>';return;}
+  cont.innerHTML=list.map(r=>{
+    const badge=r.estado==="transferido"?'<span class="badge trans">✓ Devuelto</span>':'<span class="badge pend">● Pendiente</span>';
+    const thumb=r.foto_url?`<img class="thumb" src="${r.foto_url}" onclick="showFoto('${r.foto_url}')">`:`<div class="thumb placeholder">🧾</div>`;
+    const acts=r.estado==="pendiente"
+      ? `<button class="btn green sm" onclick="openTrans('${r.id}')">✓ Marcar devuelto</button>
+         <button class="btn ghost sm" onclick="eliminar('${r.id}')">Eliminar</button>`
+      : `${r.comprobante_url?`<a class="btn ghost sm" href="${r.comprobante_url}" target="_blank">Ver comprobante</a>`:""}
+         <button class="btn ghost sm" onclick="revertir('${r.id}')">↺ Reabrir</button>
+         <button class="btn ghost sm" onclick="eliminar('${r.id}')">Eliminar</button>`;
+    return `<div class="rec">
+      ${thumb}
+      <div class="info">
+        <div class="top">
+          <div><div class="name">${r.supervisor_nombre} ${badge}</div>
+            <div class="meta">📱 ${r.supervisor_telefono||"—"} · 🏪 ${r.proveedor||"—"}<br>
+            🗓 ${fmtDate(r.fecha_compra)} · ${r.tipo_documento}${r.numero_documento?(" N° "+r.numero_documento):""}
+            ${r.descripcion?("<br>📝 "+r.descripcion):""}
+            ${r.estado==="transferido"?("<br>💸 Devuelto el "+fmtDate(r.fecha_transferencia)+(r.notas?(" · "+r.notas):"")):""}</div>
+          </div>
+          <div class="monto">${fmtCLP(r.monto)}</div>
+        </div>
+        <div class="actions">${acts}</div>
+      </div></div>`;
+  }).join("");
+}
+
+function renderDash(){
+  const pend=RECS.filter(r=>r.estado==="pendiente"), trans=RECS.filter(r=>r.estado==="transferido");
+  const sum=a=>a.reduce((s,r)=>s+Number(r.monto||0),0);
+  $("#kpiPendMonto").textContent=fmtCLP(sum(pend));
+  $("#kpiPendCount").textContent=pend.length+" compra(s)";
+  $("#kpiTransMonto").textContent=fmtCLP(sum(trans));
+  $("#kpiTransCount").textContent=trans.length+" compra(s)";
+  $("#kpiTotMonto").textContent=fmtCLP(sum(RECS));
+  $("#kpiTotCount").textContent=RECS.length+" registro(s)";
+  const sups=[...new Set(pend.map(r=>r.supervisor_nombre))];
+  $("#kpiSup").textContent=sups.length;
+  // barras por supervisor (pendiente)
+  const bySup={};
+  pend.forEach(r=>{bySup[r.supervisor_nombre]=(bySup[r.supervisor_nombre]||0)+Number(r.monto||0);});
+  const entries=Object.entries(bySup).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(1,...entries.map(e=>e[1]));
+  $("#barsSup").innerHTML=entries.length?entries.map(([n,v])=>
+    `<div class="bar-row"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n}</div>
+     <div class="bar-track"><div class="bar-fill" style="width:${(v/max*100).toFixed(0)}%"></div></div>
+     <div style="font-weight:700">${fmtCLP(v)}</div></div>`).join("")
+    :'<div class="muted">Sin montos pendientes 🎉</div>';
+}
+
+function refreshSupLists(){
+  const names=[...new Set(RECS.map(r=>r.supervisor_nombre))].sort();
+  $("#supervisores").innerHTML=names.map(n=>`<option value="${n}">`).join("");
+  $("#filtSup").innerHTML='<option value="">Todos</option>'+names.map(n=>`<option>${n}</option>`).join("");
+}
+
+async function load(){
+  const {data,error}=await sb.from("rendiciones").select("*").order("created_at",{ascending:false});
+  if(error){toast("Error de conexión: "+error.message,"err");return;}
+  RECS=data||[];
+  refreshSupLists();renderDash();render();
+}
+
+["filtEstado","filtSup","filtTexto"].forEach(id=>$("#"+id).oninput=render);
+$("#btnRefrescar").onclick=load;
+
+// ===== Autenticación =====
+function showApp(session){
+  $("#loginScreen").style.display="none";
+  $("#appWrap").style.display="";
+  $("#userEmail").textContent=session.user.email;
+  load();
+}
+function showLogin(){
+  $("#appWrap").style.display="none";
+  $("#loginScreen").style.display="flex";
+}
+
+$("#formLogin").onsubmit=async e=>{
+  e.preventDefault();
+  const btn=$("#btnLogin");btn.disabled=true;btn.textContent="Ingresando…";
+  $("#loginErr").textContent="";
+  const email=$("#loginEmail").value.trim().toLowerCase();
+  const password=$("#loginPass").value;
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){
+    $("#loginErr").textContent = error.message.includes("Invalid")?"Correo o contraseña incorrectos":error.message;
+    btn.disabled=false;btn.textContent="Ingresar";return;
+  }
+  $("#loginPass").value="";
+  showApp(data.session);
+  btn.disabled=false;btn.textContent="Ingresar";
+};
+
+$("#btnLogout").onclick=async()=>{ await sb.auth.signOut(); showLogin(); };
+
+$("#btnPass").onclick=async()=>{
+  const np=prompt("Nueva contraseña (mínimo 6 caracteres):");
+  if(!np)return;
+  if(np.length<6){toast("La contraseña debe tener al menos 6 caracteres","err");return;}
+  const {error}=await sb.auth.updateUser({password:np});
+  if(error){toast("Error: "+error.message,"err");return;}
+  toast("✓ Contraseña actualizada","ok");
+};
+
+// Mantener sesión al recargar
+(async()=>{
+  const {data}=await sb.auth.getSession();
+  if(data.session) showApp(data.session); else showLogin();
+})();
+</script>
+</body>
+</html>
