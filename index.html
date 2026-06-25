@@ -259,6 +259,25 @@
   </div>
 </div></div>
 
+<!-- modal editar -->
+<div class="modal-bg" id="modalEdit"><div class="modal" style="position:relative">
+  <button class="btn ghost sm x" onclick="closeModal('modalEdit')">✕</button>
+  <h3>Editar registro</h3>
+  <p class="muted" id="editInfo" style="margin-top:-6px;font-size:13px"></p>
+  <div class="form-grid">
+    <div><label>Monto (CLP)</label><input id="eMonto" inputmode="numeric" placeholder="$ 0"></div>
+    <div><label>Fecha de compra</label><input type="date" id="eFecha"></div>
+    <div><label>Tipo de documento</label><select id="eTipo"><option value="boleta">Boleta</option><option value="factura">Factura</option></select></div>
+    <div><label>N° documento</label><input id="eNumDoc" placeholder="Ej: 0012345"></div>
+    <div class="full"><label>Proveedor / comercio</label><input id="eProveedor" placeholder="Ej: Sodimac, Copec…"></div>
+    <div class="full"><label>Descripción</label><textarea id="eDesc" placeholder="Qué se compró"></textarea></div>
+  </div>
+  <div style="margin-top:16px;display:flex;gap:10px">
+    <button class="btn" id="btnConfirmEdit">Guardar cambios</button>
+    <button class="btn ghost" onclick="closeModal('modalEdit')">Cancelar</button>
+  </div>
+</div></div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -377,6 +396,40 @@ $("#btnConfirmTrans").onclick=async()=>{
   btn.disabled=false;btn.textContent="Confirmar devolución";
 };
 
+// editar registro
+let editId=null;
+$("#eMonto").oninput=e=>{let v=e.target.value.replace(/[^\d]/g,"");e.target.value=v?"$ "+Number(v).toLocaleString("es-CL"):"";};
+function openEdit(id){
+  const r=RECS.find(x=>x.id===id);if(!r)return;editId=id;
+  $("#editInfo").textContent=`${r.supervisor_nombre} · ${r.proveedor||"—"}`;
+  $("#eMonto").value=r.monto?("$ "+Number(r.monto).toLocaleString("es-CL")):"";
+  $("#eFecha").value=r.fecha_compra?r.fecha_compra.slice(0,10):"";
+  $("#eTipo").value=(r.tipo_documento==="factura")?"factura":"boleta";
+  $("#eNumDoc").value=r.numero_documento||"";
+  $("#eProveedor").value=r.proveedor||"";
+  $("#eDesc").value=r.descripcion||"";
+  $("#modalEdit").classList.add("show");
+}
+$("#btnConfirmEdit").onclick=async()=>{
+  const btn=$("#btnConfirmEdit");btn.disabled=true;btn.textContent="Guardando…";
+  try{
+    const {data:fn,error}=await sb.functions.invoke("editar-registro",{body:{
+      id:editId,
+      proveedor:$("#eProveedor").value.trim()||null,
+      tipo_documento:$("#eTipo").value,
+      numero_documento:$("#eNumDoc").value.trim()||null,
+      monto:parseMonto($("#eMonto").value),
+      fecha_compra:$("#eFecha").value||null,
+      descripcion:$("#eDesc").value.trim()||null
+    }});
+    if(error)throw error;
+    if(fn&&fn.appsheetOk===false) toast("Guardado en la web (aviso: la sincronización al móvil falló)","err");
+    else toast("✓ Cambios guardados y enviados al móvil","ok");
+    closeModal("modalEdit");await load();
+  }catch(err){console.error(err);toast("Error: "+(err.message||err),"err");}
+  btn.disabled=false;btn.textContent="Guardar cambios";
+};
+
 async function revertir(id){
   if(!confirm("¿Volver a marcar como PENDIENTE?"))return;
   const {error}=await sb.from("rendiciones").update({estado:"pendiente",fecha_transferencia:null}).eq("id",id);
@@ -406,8 +459,10 @@ function render(){
     const thumb=r.foto_url?`<img class="thumb" src="${r.foto_url}" onclick="showFoto('${r.foto_url}')">`:`<div class="thumb placeholder">🧾</div>`;
     const acts=r.estado==="pendiente"
       ? `<button class="btn green sm" onclick="openTrans('${r.id}')">✓ Marcar devuelto</button>
+         <button class="btn ghost sm" onclick="openEdit('${r.id}')">✏️ Editar</button>
          <button class="btn ghost sm" onclick="eliminar('${r.id}')">Eliminar</button>`
       : `${r.comprobante_url?`<a class="btn ghost sm" href="${r.comprobante_url}" target="_blank">Ver comprobante</a>`:""}
+         <button class="btn ghost sm" onclick="openEdit('${r.id}')">✏️ Editar</button>
          <button class="btn ghost sm" onclick="revertir('${r.id}')">↺ Reabrir</button>
          <button class="btn ghost sm" onclick="eliminar('${r.id}')">Eliminar</button>`;
     return `<div class="rec">
