@@ -265,12 +265,18 @@
   <h3>Editar registro</h3>
   <p class="muted" id="editInfo" style="margin-top:-6px;font-size:13px"></p>
   <div class="form-grid">
+    <div class="full"><label>Supervisor / usuario</label><select id="eSup"></select></div>
     <div><label>Monto (CLP)</label><input id="eMonto" inputmode="numeric" placeholder="$ 0"></div>
     <div><label>Fecha de compra</label><input type="date" id="eFecha"></div>
     <div><label>Tipo de documento</label><select id="eTipo"><option value="boleta">Boleta</option><option value="factura">Factura</option></select></div>
     <div><label>N° documento</label><input id="eNumDoc" placeholder="Ej: 0012345"></div>
     <div class="full"><label>Proveedor / comercio</label><input id="eProveedor" placeholder="Ej: Sodimac, Copec…"></div>
     <div class="full"><label>Descripción</label><textarea id="eDesc" placeholder="Qué se compró"></textarea></div>
+    <div class="full"><label>Foto de la boleta (reemplazar, opcional)</label>
+      <div class="dropzone" id="dropEditFoto"><div id="dropEditMsg">📷 Toca para subir una nueva foto</div>
+      <input type="file" id="eFoto" accept="image/*" class="hide"></div>
+      <div class="muted" style="font-size:11px;margin-top:6px">La nueva foto se mostrará en la web.</div>
+    </div>
   </div>
   <div style="margin-top:16px;display:flex;gap:10px">
     <button class="btn" id="btnConfirmEdit">Guardar cambios</button>
@@ -397,30 +403,48 @@ $("#btnConfirmTrans").onclick=async()=>{
 };
 
 // editar registro
-let editId=null;
+const SUPERVISORES=["jrodriguezp@soilconstructora.cl","fortiz@ngencospa.com","dillanes@ngencospa.com"];
+let editId=null, editFotoFile=null;
 $("#eMonto").oninput=e=>{let v=e.target.value.replace(/[^\d]/g,"");e.target.value=v?"$ "+Number(v).toLocaleString("es-CL"):"";};
+$("#dropEditFoto").onclick=()=>$("#eFoto").click();
+$("#eFoto").onchange=e=>{
+  editFotoFile=e.target.files[0];if(!editFotoFile)return;
+  const url=URL.createObjectURL(editFotoFile);
+  $("#dropEditFoto").classList.add("has");
+  $("#dropEditMsg").innerHTML=`<img src="${url}"><div class="muted" style="margin-top:8px;font-size:12px">${editFotoFile.name} — toca para cambiar</div>`;
+};
 function openEdit(id){
-  const r=RECS.find(x=>x.id===id);if(!r)return;editId=id;
+  const r=RECS.find(x=>x.id===id);if(!r)return;editId=id;editFotoFile=null;
   $("#editInfo").textContent=`${r.supervisor_nombre} · ${r.proveedor||"—"}`;
+  const cur=r.supervisor_nombre||"";
+  const opts=(!cur||SUPERVISORES.includes(cur))?SUPERVISORES:[cur,...SUPERVISORES];
+  $("#eSup").innerHTML=opts.map(s=>`<option value="${s}">${s}</option>`).join("");
+  $("#eSup").value=cur||SUPERVISORES[0];
   $("#eMonto").value=r.monto?("$ "+Number(r.monto).toLocaleString("es-CL")):"";
   $("#eFecha").value=r.fecha_compra?r.fecha_compra.slice(0,10):"";
   $("#eTipo").value=(r.tipo_documento==="factura")?"factura":"boleta";
   $("#eNumDoc").value=r.numero_documento||"";
   $("#eProveedor").value=r.proveedor||"";
   $("#eDesc").value=r.descripcion||"";
+  $("#dropEditFoto").classList.remove("has");
+  $("#dropEditMsg").innerHTML="📷 Toca para subir una nueva foto";
   $("#modalEdit").classList.add("show");
 }
 $("#btnConfirmEdit").onclick=async()=>{
   const btn=$("#btnConfirmEdit");btn.disabled=true;btn.textContent="Guardando…";
   try{
+    let foto_url=null;
+    if(editFotoFile) foto_url=await uploadFile(editFotoFile,"boletas");
     const {data:fn,error}=await sb.functions.invoke("editar-registro",{body:{
       id:editId,
+      supervisor_nombre:$("#eSup").value,
       proveedor:$("#eProveedor").value.trim()||null,
       tipo_documento:$("#eTipo").value,
       numero_documento:$("#eNumDoc").value.trim()||null,
       monto:parseMonto($("#eMonto").value),
       fecha_compra:$("#eFecha").value||null,
-      descripcion:$("#eDesc").value.trim()||null
+      descripcion:$("#eDesc").value.trim()||null,
+      foto_url:foto_url
     }});
     if(error)throw error;
     if(fn&&fn.appsheetOk===false) toast("Guardado en la web (aviso: la sincronización al móvil falló)","err");
