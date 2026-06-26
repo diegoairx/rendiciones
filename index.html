@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
@@ -154,6 +156,7 @@
     <div class="tab active" data-tab="dash">📊 Resumen</div>
     <div class="tab" data-tab="nuevo">➕ Nuevo registro</div>
     <div class="tab" data-tab="lista">📋 Registros</div>
+    <div class="tab" data-tab="informe">📄 Informe</div>
   </div>
 
   <!-- DASHBOARD -->
@@ -237,6 +240,28 @@
     </div>
     <div class="grid" id="listaRecs"><div class="muted">Cargando…</div></div>
   </section>
+
+  <!-- INFORME -->
+  <section id="tab-informe" class="hide">
+    <div class="card">
+      <div class="section-title">📄 Informe mensual de gastos — para contabilidad</div>
+      <div class="form-grid">
+        <div><label>Supervisor</label><select id="infSup"></select></div>
+        <div><label>Nombre y Apellido (empleado)</label><input id="infNombre" placeholder="Ej: DIEGO ILLANES"></div>
+        <div><label>Puesto</label><input id="infPuesto" placeholder="Ej: Gerente General"></div>
+        <div><label>Tipo de tarjeta / medio</label><input id="infMedio" value="Tarjeta VISA - Transferencia Electrónica"></div>
+        <div><label>Período — Desde</label><input type="date" id="infDesde"></div>
+        <div><label>Período — Hasta</label><input type="date" id="infHasta"></div>
+        <div><label>Adelantos (CLP)</label><input id="infAdelantos" inputmode="numeric" placeholder="$ 0"></div>
+        <div></div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="btnInforme">📄 Descargar informe PDF</button>
+        <span class="muted" id="infResumen"></span>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:10px">Los gastos se clasifican automáticamente por categoría (Materiales, Transporte, Combustible, Comidas u Otros) según proveedor y descripción.</div>
+    </div>
+  </section>
 </div>
 
 <!-- modal foto -->
@@ -304,8 +329,9 @@ function closeModal(id){$("#"+id).classList.remove("show");}
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   t.classList.add("active");
-  ["dash","nuevo","lista"].forEach(n=>$("#tab-"+n).classList.add("hide"));
+  ["dash","nuevo","lista","informe"].forEach(n=>$("#tab-"+n).classList.add("hide"));
   $("#tab-"+t.dataset.tab).classList.remove("hide");
+  if(t.dataset.tab==="informe") initInforme();
 });
 
 // foto picker (nuevo)
@@ -544,6 +570,85 @@ async function load(){
 
 ["filtEstado","filtSup","filtTexto"].forEach(id=>$("#"+id).oninput=render);
 $("#btnRefrescar").onclick=load;
+
+// ===== Informe mensual (PDF) =====
+const NOMBRES={
+  "dillanes@ngencospa.com":{nombre:"DIEGO ILLANES",puesto:"Gerente General"},
+  "jrodriguezp@soilconstructora.cl":{nombre:"",puesto:""},
+  "fortiz@ngencospa.com":{nombre:"",puesto:""}
+};
+function clp2(n){return "$ "+Number(n||0).toLocaleString("es-CL",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtFechaCorta(d){if(!d)return"";const p=String(d).slice(0,10).split("-");return p.length===3?`${p[2]}-${p[1]}-${p[0].slice(2)}`:String(d);}
+function clasificar(r){
+  const t=((r.proveedor||"")+" "+(r.descripcion||"")).toLowerCase();
+  if(/petr[oó]leo|bencina|combust|gasolina|copec|shell|petrobras|aramco|esso|diesel|di[eé]sel/.test(t))return "COMBUSTIBLE";
+  if(/flete|transporte|peaje|pasaje|taxi|uber|estacionamiento|tag|locomoci/.test(t))return "TRANSPORTE";
+  if(/almuerzo|comida|restaurant|restoran|caf[eé]|colaci[oó]n|cena|desayuno/.test(t))return "COMIDAS";
+  if(/material|bomba|cemento|fierro|madera|pintura|tuber|ferreter|repuesto|herramient|construc|\barido/.test(t))return "MATERIALES";
+  return "OTROS";
+}
+function initInforme(){
+  const opts=[...new Set([...SUPERVISORES,...RECS.map(r=>r.supervisor_nombre)])].filter(Boolean);
+  $("#infSup").innerHTML=opts.map(s=>`<option value="${s}">${s}</option>`).join("");
+  const m=NOMBRES[$("#infSup").value]||{};
+  if(!$("#infNombre").value)$("#infNombre").value=m.nombre||"";
+  if(!$("#infPuesto").value)$("#infPuesto").value=m.puesto||"";
+  if(!$("#infDesde").value){const n=new Date();$("#infDesde").value=new Date(n.getFullYear(),n.getMonth(),1).toLocaleDateString("en-CA");}
+  if(!$("#infHasta").value){const n=new Date();$("#infHasta").value=new Date(n.getFullYear(),n.getMonth()+1,0).toLocaleDateString("en-CA");}
+}
+$("#infSup")&&($("#infSup").onchange=()=>{const m=NOMBRES[$("#infSup").value]||{};$("#infNombre").value=m.nombre||"";$("#infPuesto").value=m.puesto||"";});
+$("#infAdelantos")&&($("#infAdelantos").oninput=e=>{let v=e.target.value.replace(/[^\d]/g,"");e.target.value=v?"$ "+Number(v).toLocaleString("es-CL"):"";});
+function generarInforme(){
+  if(!window.jspdf){toast("No se cargó la librería PDF; revisa tu conexión","err");return;}
+  const sup=$("#infSup").value, desde=$("#infDesde").value, hasta=$("#infHasta").value;
+  const rows=RECS.filter(r=>r.supervisor_nombre===sup && (!desde||(r.fecha_compra||"")>=desde) && (!hasta||(r.fecha_compra||"")<=hasta))
+                 .sort((a,b)=>String(a.fecha_compra||"").localeCompare(String(b.fecha_compra||"")));
+  if(!rows.length){toast("No hay gastos para ese supervisor y período","err");return;}
+  const cats=["MATERIALES","TRANSPORTE","COMBUSTIBLE","COMIDAS","OTROS"];
+  const totCat={MATERIALES:0,TRANSPORTE:0,COMBUSTIBLE:0,COMIDAS:0,OTROS:0};
+  const body=rows.map(r=>{
+    const cat=clasificar(r); const monto=Number(r.monto||0); totCat[cat]+=monto;
+    const cells=cats.map(c=>clp2(c===cat?monto:0));
+    return [fmtFechaCorta(r.fecha_compra),(r.tipo_documento==="factura"?"Factura":"Boleta"),r.proveedor||"—",r.descripcion||"—",...cells,clp2(monto)];
+  });
+  const subtotal=rows.reduce((s,r)=>s+Number(r.monto||0),0);
+  const adelantos=parseMonto($("#infAdelantos").value);
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const W=doc.internal.pageSize.getWidth();
+  doc.setFontSize(13);doc.setFont(undefined,"bold");
+  doc.text("Rendición de Gastos "+($("#infMedio").value||"Tarjeta VISA - Transferencia Electrónica"),W/2,14,{align:"center"});
+  doc.setFontSize(9);doc.setFont(undefined,"bold");
+  doc.text("Información del Empleado",14,24);
+  doc.text("Período considerado",W-70,24);
+  doc.setFont(undefined,"normal");
+  doc.text("Nombre y Apellido:  "+($("#infNombre").value||sup),14,30);
+  doc.text("Puesto:  "+($("#infPuesto").value||"—"),14,35);
+  doc.text("DESDE   "+fmtFechaCorta(desde),W-70,30);
+  doc.text("HASTA   "+fmtFechaCorta(hasta),W-70,35);
+  doc.autoTable({
+    startY:40,
+    head:[["FECHA","N°","Proveedor","DESCRIPCIÓN","MATERIALES","TRANSPORTE","COMBUSTIBLE","COMIDAS","OTROS","TOTAL"]],
+    body,
+    foot:[["","","","Subtotal",clp2(totCat.MATERIALES),clp2(totCat.TRANSPORTE),clp2(totCat.COMBUSTIBLE),clp2(totCat.COMIDAS),clp2(totCat.OTROS),clp2(subtotal)]],
+    styles:{fontSize:8,cellPadding:1.4,overflow:"linebreak"},
+    headStyles:{fillColor:[47,109,246],textColor:255,halign:"center",fontStyle:"bold"},
+    footStyles:{fillColor:[235,239,247],textColor:20,fontStyle:"bold",halign:"right"},
+    columnStyles:{0:{cellWidth:18},1:{cellWidth:16},2:{cellWidth:38},3:{cellWidth:60},4:{halign:"right"},5:{halign:"right"},6:{halign:"right"},7:{halign:"right"},8:{halign:"right"},9:{halign:"right",fontStyle:"bold"}},
+    margin:{left:14,right:14}
+  });
+  let y=doc.lastAutoTable.finalY+8; const xL=W-90;
+  doc.setFontSize(10);
+  doc.setFont(undefined,"normal");doc.text("Subtotal:",xL,y);doc.text(clp2(subtotal),W-14,y,{align:"right"});y+=6;
+  doc.text("Adelantos:",xL,y);doc.text(clp2(adelantos),W-14,y,{align:"right"});y+=6;
+  doc.setFont(undefined,"bold");doc.text("Total a Rendir:",xL,y);doc.text(clp2(subtotal-adelantos),W-14,y,{align:"right"});
+  doc.setFont(undefined,"normal");doc.setFontSize(9);
+  doc.text("Aprobado por:  _______________________________",14,y+18);
+  const fn="Informe_gastos_"+sup.split("@")[0]+"_"+(desde||"")+"_a_"+(hasta||"")+".pdf";
+  doc.save(fn);
+  $("#infResumen").textContent=rows.length+" gasto(s) · "+clp2(subtotal);
+}
+$("#btnInforme")&&($("#btnInforme").onclick=generarInforme);
 
 // ===== Autenticación =====
 function showApp(session){
