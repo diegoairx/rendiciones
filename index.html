@@ -250,6 +250,7 @@
         <div><label>Nombre y Apellido (empleado)</label><input id="infNombre" placeholder="Ej: DIEGO ILLANES"></div>
         <div><label>Puesto</label><input id="infPuesto" placeholder="Ej: Gerente General"></div>
         <div><label>Tipo de tarjeta / medio</label><input id="infMedio" value="Tarjeta VISA - Transferencia Electrónica"></div>
+        <div><label>Agrupar / filtrar por</label><select id="infCriterio"><option value="presentacion">Fecha de presentación (rendición)</option><option value="compra">Fecha de compra</option></select></div>
         <div><label>Período — Desde</label><input type="date" id="infDesde"></div>
         <div><label>Período — Hasta</label><input type="date" id="infHasta"></div>
         <div><label>Adelantos (CLP)</label><input id="infAdelantos" inputmode="numeric" placeholder="$ 0"></div>
@@ -587,23 +588,47 @@ function clasificar(r){
   if(/material|bomba|cemento|fierro|madera|pintura|tuber|ferreter|repuesto|herramient|construc|\barido/.test(t))return "MATERIALES";
   return "OTROS";
 }
+function critInforme(){return ($("#infCriterio")&&$("#infCriterio").value)||"presentacion";}
+function critLabel(){return critInforme()==="compra"?"fecha de compra":"fecha de presentación";}
+function fechaCriterio(r){const v=critInforme()==="compra"?r.fecha_compra:(r.created_at||r.fecha_compra);return v?String(v).slice(0,10):"";}
+function fechasSup(sup){return RECS.filter(r=>r.supervisor_nombre===sup).map(fechaCriterio).filter(Boolean).sort();}
+function setPeriodoSup(sup){
+  const ds=fechasSup(sup);
+  let d1,d2;
+  if(ds.length){const last=ds[ds.length-1];const p=last.split("-").map(Number);d1=new Date(p[0],p[1]-1,1);d2=new Date(p[0],p[1],0);}
+  else{const n=new Date();d1=new Date(n.getFullYear(),n.getMonth(),1);d2=new Date(n.getFullYear(),n.getMonth()+1,0);}
+  $("#infDesde").value=d1.toLocaleDateString("en-CA");
+  $("#infHasta").value=d2.toLocaleDateString("en-CA");
+}
+function aplicarSup(){
+  const sup=$("#infSup").value; const m=NOMBRES[sup]||{};
+  $("#infNombre").value=m.nombre||"";
+  $("#infPuesto").value=m.puesto||"";
+  setPeriodoSup(sup);
+  const ds=fechasSup(sup);
+  $("#infResumen").textContent=ds.length?("Datos disponibles: "+fmtFechaCorta(ds[0])+" a "+fmtFechaCorta(ds[ds.length-1])+" · "+ds.length+" gasto(s)"):"Este supervisor no tiene gastos registrados.";
+}
 function initInforme(){
   const opts=[...new Set([...SUPERVISORES,...RECS.map(r=>r.supervisor_nombre)])].filter(Boolean);
+  const prev=$("#infSup").value;
   $("#infSup").innerHTML=opts.map(s=>`<option value="${s}">${s}</option>`).join("");
-  const m=NOMBRES[$("#infSup").value]||{};
-  if(!$("#infNombre").value)$("#infNombre").value=m.nombre||"";
-  if(!$("#infPuesto").value)$("#infPuesto").value=m.puesto||"";
-  if(!$("#infDesde").value){const n=new Date();$("#infDesde").value=new Date(n.getFullYear(),n.getMonth(),1).toLocaleDateString("en-CA");}
-  if(!$("#infHasta").value){const n=new Date();$("#infHasta").value=new Date(n.getFullYear(),n.getMonth()+1,0).toLocaleDateString("en-CA");}
+  if(prev&&opts.includes(prev))$("#infSup").value=prev;
+  aplicarSup();
 }
-$("#infSup")&&($("#infSup").onchange=()=>{const m=NOMBRES[$("#infSup").value]||{};$("#infNombre").value=m.nombre||"";$("#infPuesto").value=m.puesto||"";});
+$("#infSup")&&($("#infSup").onchange=aplicarSup);
+$("#infCriterio")&&($("#infCriterio").onchange=aplicarSup);
 $("#infAdelantos")&&($("#infAdelantos").oninput=e=>{let v=e.target.value.replace(/[^\d]/g,"");e.target.value=v?"$ "+Number(v).toLocaleString("es-CL"):"";});
 function generarInforme(){
   if(!window.jspdf){toast("No se cargó la librería PDF; revisa tu conexión","err");return;}
   const sup=$("#infSup").value, desde=$("#infDesde").value, hasta=$("#infHasta").value;
-  const rows=RECS.filter(r=>r.supervisor_nombre===sup && (!desde||(r.fecha_compra||"")>=desde) && (!hasta||(r.fecha_compra||"")<=hasta))
-                 .sort((a,b)=>String(a.fecha_compra||"").localeCompare(String(b.fecha_compra||"")));
-  if(!rows.length){toast("No hay gastos para ese supervisor y período","err");return;}
+  const rows=RECS.filter(r=>{const f=fechaCriterio(r);return r.supervisor_nombre===sup && (!desde||f>=desde) && (!hasta||f<=hasta);})
+                 .sort((a,b)=>fechaCriterio(a).localeCompare(fechaCriterio(b)));
+  if(!rows.length){
+    const ds=fechasSup(sup);
+    toast(ds.length?("No hay gastos en ese período. Datos disponibles: "+fmtFechaCorta(ds[0])+" a "+fmtFechaCorta(ds[ds.length-1])):"Ese supervisor no tiene gastos registrados.","err");
+    return;
+  }
+  try{
   const cats=["MATERIALES","TRANSPORTE","COMBUSTIBLE","COMIDAS","OTROS"];
   const totCat={MATERIALES:0,TRANSPORTE:0,COMBUSTIBLE:0,COMIDAS:0,OTROS:0};
   const body=rows.map(r=>{
@@ -626,8 +651,9 @@ function generarInforme(){
   doc.text("Puesto:  "+($("#infPuesto").value||"—"),14,35);
   doc.text("DESDE   "+fmtFechaCorta(desde),W-70,30);
   doc.text("HASTA   "+fmtFechaCorta(hasta),W-70,35);
+  doc.setFontSize(7.5);doc.setTextColor(110);doc.text("(agrupado por "+critLabel()+")",W-70,39);doc.setTextColor(0);doc.setFontSize(9);
   doc.autoTable({
-    startY:40,
+    startY:44,
     head:[["FECHA","N°","Proveedor","DESCRIPCIÓN","MATERIALES","TRANSPORTE","COMBUSTIBLE","COMIDAS","OTROS","TOTAL"]],
     body,
     foot:[["","","","Subtotal",clp2(totCat.MATERIALES),clp2(totCat.TRANSPORTE),clp2(totCat.COMBUSTIBLE),clp2(totCat.COMIDAS),clp2(totCat.OTROS),clp2(subtotal)]],
@@ -646,7 +672,8 @@ function generarInforme(){
   doc.text("Aprobado por:  _______________________________",14,y+18);
   const fn="Informe_gastos_"+sup.split("@")[0]+"_"+(desde||"")+"_a_"+(hasta||"")+".pdf";
   doc.save(fn);
-  $("#infResumen").textContent=rows.length+" gasto(s) · "+clp2(subtotal);
+  $("#infResumen").textContent="✓ "+rows.length+" gasto(s) · "+clp2(subtotal);
+  }catch(e){console.error(e);toast("Error al generar el PDF: "+(e.message||e),"err");}
 }
 $("#btnInforme")&&($("#btnInforme").onclick=generarInforme);
 
@@ -674,26 +701,4 @@ $("#formLogin").onsubmit=async e=>{
     btn.disabled=false;btn.textContent="Ingresar";return;
   }
   $("#loginPass").value="";
-  showApp(data.session);
-  btn.disabled=false;btn.textContent="Ingresar";
-};
-
-$("#btnLogout").onclick=async()=>{ await sb.auth.signOut(); showLogin(); };
-
-$("#btnPass").onclick=async()=>{
-  const np=prompt("Nueva contraseña (mínimo 6 caracteres):");
-  if(!np)return;
-  if(np.length<6){toast("La contraseña debe tener al menos 6 caracteres","err");return;}
-  const {error}=await sb.auth.updateUser({password:np});
-  if(error){toast("Error: "+error.message,"err");return;}
-  toast("✓ Contraseña actualizada","ok");
-};
-
-// Mantener sesión al recargar
-(async()=>{
-  const {data}=await sb.auth.getSession();
-  if(data.session) showApp(data.session); else showLogin();
-})();
-</script>
-</body>
-</html>
+  showApp(dat
