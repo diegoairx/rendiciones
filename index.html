@@ -701,4 +701,26 @@ $("#formLogin").onsubmit=async e=>{
     btn.disabled=false;btn.textContent="Ingresar";return;
   }
   $("#loginPass").value="";
-  showApp(dat
+  showApp(data.session);
+  btn.disabled=false;btn.textContent="Ingresar";
+};
+
+$("#btnLogout").onclick=async()=>{ await sb.auth.signOut(); showLogin(); };
+
+$("#btnPass").onclick=async()=>{
+  const np=prompt("Nueva contraseña (mínimo 6 caracteres):");
+  if(!np)return;
+  if(np.length<6){toast("La contraseña debe tener al menos 6 caracteres","err");return;}
+  const {error}=await sb.auth.updateUser({password:np});
+  if(error){toast("Error: "+error.message,"err");return;}
+  toast("✓ Contraseña actualizada","ok");
+};
+
+// Mantener sesión al recargar
+(async()=>{
+  const {data}=await sb.auth.getSession();
+  if(data.session) showApp(data.session); else showLogin();
+})();
+</script>
+</body>
+</html>
