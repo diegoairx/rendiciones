@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
     --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
@@ -105,6 +106,12 @@
   .hide{display:none!important}
   .row-split{display:flex;gap:10px} .row-split>*{flex:1}
 
+  .dash-charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .dash-charts .wide{grid-column:1/-1}
+  .chart-wrap{position:relative;height:230px}
+  .chart-wrap.tall{height:300px}
+  @media(max-width:760px){.dash-charts{grid-template-columns:1fr}}
+
   /* login */
   #loginScreen{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;padding:18px;
     background:radial-gradient(900px 500px at 50% -10%, #1b2030 0%, transparent 60%), var(--bg)}
@@ -161,15 +168,25 @@
 
   <!-- DASHBOARD -->
   <section id="tab-dash">
+    <div class="card" style="margin-bottom:16px">
+      <div class="filters" style="margin-bottom:0">
+        <div><label>Supervisor</label><select id="dashSup"><option value="">Todos</option></select></div>
+        <div><label>Desde</label><input type="date" id="dashDesde"></div>
+        <div><label>Hasta</label><input type="date" id="dashHasta"></div>
+        <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost sm" id="dashReset">↺ Limpiar</button></div>
+      </div>
+    </div>
     <div class="grid kpis" style="margin-bottom:16px">
       <div class="card kpi pend"><h3>Por devolver</h3><div class="val" id="kpiPendMonto">—</div><div class="sub" id="kpiPendCount">—</div></div>
       <div class="card kpi trans"><h3>Devuelto</h3><div class="val" id="kpiTransMonto">—</div><div class="sub" id="kpiTransCount">—</div></div>
       <div class="card kpi"><h3>Total registrado</h3><div class="val" id="kpiTotMonto">—</div><div class="sub" id="kpiTotCount">—</div></div>
       <div class="card kpi"><h3>Supervisores</h3><div class="val" id="kpiSup">—</div><div class="sub">con compras activas</div></div>
     </div>
-    <div class="card">
-      <div class="section-title">💰 Pendiente de devolución por supervisor</div>
-      <div class="bars" id="barsSup"><div class="muted">Cargando…</div></div>
+    <div class="dash-charts">
+      <div class="card"><div class="section-title">📊 Estado de devoluciones</div><div class="chart-wrap"><canvas id="chEstado"></canvas></div></div>
+      <div class="card"><div class="section-title">🧾 Por tipo de documento</div><div class="chart-wrap"><canvas id="chTipo"></canvas></div></div>
+      <div class="card wide"><div class="section-title">👤 Gasto por supervisor</div><div class="chart-wrap tall"><canvas id="chSup"></canvas></div></div>
+      <div class="card wide"><div class="section-title">📅 Gasto por mes (fecha de compra)</div><div class="chart-wrap tall"><canvas id="chMes"></canvas></div></div>
     </div>
   </section>
 
@@ -183,10 +200,6 @@
             <label>Supervisor *</label>
             <input list="supervisores" id="fNombre" placeholder="Nombre del supervisor" required>
             <datalist id="supervisores"></datalist>
-          </div>
-          <div>
-            <label>Teléfono personal *</label>
-            <input id="fTelefono" placeholder="+569 1234 5678" required>
           </div>
           <div>
             <label>Monto (CLP) *</label>
@@ -238,6 +251,7 @@
         <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost sm" id="btnRefrescar">↻ Actualizar</button></div>
       </div>
     </div>
+    <div class="card" id="listaResumen" style="margin-bottom:14px;display:none"></div>
     <div class="grid" id="listaRecs"><div class="muted">Cargando…</div></div>
   </section>
 
@@ -333,6 +347,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   ["dash","nuevo","lista","informe"].forEach(n=>$("#tab-"+n).classList.add("hide"));
   $("#tab-"+t.dataset.tab).classList.remove("hide");
   if(t.dataset.tab==="informe") initInforme();
+  if(t.dataset.tab==="dash") renderDash();
 });
 
 // foto picker (nuevo)
@@ -378,7 +393,7 @@ $("#formNuevo").onsubmit=async e=>{
     if(fotoFile) foto_url=await uploadFile(fotoFile,"boletas");
     const row={
       supervisor_nombre:$("#fNombre").value.trim(),
-      supervisor_telefono:$("#fTelefono").value.trim(),
+      supervisor_telefono:null,
       proveedor:$("#fProveedor").value.trim()||null,
       tipo_documento:$("#fTipo").value,
       numero_documento:$("#fNumDoc").value.trim()||null,
@@ -503,6 +518,25 @@ function render(){
     (!fe||r.estado===fe)&&(!fs||r.supervisor_nombre===fs)&&
     (!ft||[r.proveedor,r.descripcion,r.numero_documento,r.supervisor_nombre].join(" ").toLowerCase().includes(ft)));
 
+  // Sumatorias de los flujos (según filtros / estado / supervisor)
+  const resEl=$("#listaResumen");
+  if(resEl){
+    if(list.length){
+      const sum=a=>a.reduce((s,r)=>s+Number(r.monto||0),0);
+      const pen=list.filter(r=>r.estado==="pendiente"), tra=list.filter(r=>r.estado==="transferido");
+      const bySup={};list.forEach(r=>{bySup[r.supervisor_nombre]=(bySup[r.supervisor_nombre]||0)+Number(r.monto||0);});
+      const chips=Object.entries(bySup).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`<span class="pill">${shortEmail(n)}: <b>${fmtCLP(v)}</b></span>`).join(" ");
+      resEl.style.display="";
+      resEl.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;font-size:14px">
+        <div><span class="muted">Registros</span> <b>${list.length}</b></div>
+        <div><span class="muted">Total</span> <b>${fmtCLP(sum(list))}</b></div>
+        <div><span class="badge pend">● Pendiente</span> <b>${fmtCLP(sum(pen))}</b> <span class="muted">(${pen.length})</span></div>
+        <div><span class="badge trans">✓ Devuelto</span> <b>${fmtCLP(sum(tra))}</b> <span class="muted">(${tra.length})</span></div>
+      </div>
+      <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">${chips}</div>`;
+    } else { resEl.style.display="none"; resEl.innerHTML=""; }
+  }
+
   const cont=$("#listaRecs");
   if(!list.length){cont.innerHTML='<div class="empty"><div class="ico">📭</div>Sin registros para los filtros actuales</div>';return;}
   cont.innerHTML=list.map(r=>{
@@ -521,7 +555,7 @@ function render(){
       <div class="info">
         <div class="top">
           <div><div class="name">${r.supervisor_nombre} ${badge}</div>
-            <div class="meta">📱 ${r.supervisor_telefono||"—"} · 🏪 ${r.proveedor||"—"}<br>
+            <div class="meta">🏪 ${r.proveedor||"—"}<br>
             🗓 ${fmtDate(r.fecha_compra)} · ${r.tipo_documento}${r.numero_documento?(" N° "+r.numero_documento):""}
             ${r.descripcion?("<br>📝 "+r.descripcion):""}
             ${r.estado==="transferido"?("<br>💸 Devuelto el "+fmtDate(r.fecha_transferencia)+(r.notas?(" · "+r.notas):"")):""}</div>
@@ -533,33 +567,53 @@ function render(){
   }).join("");
 }
 
+let CHARTS={};
+function shortEmail(e){return String(e||"").split("@")[0];}
+function mesLabel(m){const p=String(m).split("-");const n=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];return (n[+p[1]-1]||p[1])+" "+p[0].slice(2);}
+function destroyCharts(){Object.values(CHARTS).forEach(c=>{try{c.destroy();}catch(e){}});CHARTS={};}
+function dashFiltered(){
+  const s=($("#dashSup")||{}).value||"", d1=($("#dashDesde")||{}).value||"", d2=($("#dashHasta")||{}).value||"";
+  return RECS.filter(r=>(!s||r.supervisor_nombre===s)&&(!d1||(r.fecha_compra||"")>=d1)&&(!d2||(r.fecha_compra||"")<=d2));
+}
 function renderDash(){
-  const pend=RECS.filter(r=>r.estado==="pendiente"), trans=RECS.filter(r=>r.estado==="transferido");
+  const L=dashFiltered();
   const sum=a=>a.reduce((s,r)=>s+Number(r.monto||0),0);
-  $("#kpiPendMonto").textContent=fmtCLP(sum(pend));
+  const pend=L.filter(r=>r.estado==="pendiente"), trans=L.filter(r=>r.estado==="transferido");
+  const sp=sum(pend), st=sum(trans), stot=sum(L);
+  $("#kpiPendMonto").textContent=fmtCLP(sp);
   $("#kpiPendCount").textContent=pend.length+" compra(s)";
-  $("#kpiTransMonto").textContent=fmtCLP(sum(trans));
+  $("#kpiTransMonto").textContent=fmtCLP(st);
   $("#kpiTransCount").textContent=trans.length+" compra(s)";
-  $("#kpiTotMonto").textContent=fmtCLP(sum(RECS));
-  $("#kpiTotCount").textContent=RECS.length+" registro(s)";
-  const sups=[...new Set(pend.map(r=>r.supervisor_nombre))];
-  $("#kpiSup").textContent=sups.length;
-  // barras por supervisor (pendiente)
-  const bySup={};
-  pend.forEach(r=>{bySup[r.supervisor_nombre]=(bySup[r.supervisor_nombre]||0)+Number(r.monto||0);});
-  const entries=Object.entries(bySup).sort((a,b)=>b[1]-a[1]);
-  const max=Math.max(1,...entries.map(e=>e[1]));
-  $("#barsSup").innerHTML=entries.length?entries.map(([n,v])=>
-    `<div class="bar-row"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${n}</div>
-     <div class="bar-track"><div class="bar-fill" style="width:${(v/max*100).toFixed(0)}%"></div></div>
-     <div style="font-weight:700">${fmtCLP(v)}</div></div>`).join("")
-    :'<div class="muted">Sin montos pendientes 🎉</div>';
+  $("#kpiTotMonto").textContent=fmtCLP(stot);
+  $("#kpiTotCount").textContent=L.length+" registro(s)";
+  $("#kpiSup").textContent=[...new Set(L.map(r=>r.supervisor_nombre))].length;
+  if(typeof Chart==="undefined")return;
+  Chart.defaults.color="#9aa3b2";Chart.defaults.font.family="Inter, system-ui, sans-serif";
+  destroyCharts();
+  const AMBER="#d98a00",GREEN="#16a34a",BRAND="#2f6df6",PURP="#8b5cf6";
+  const money=v=>"$ "+Math.round(Number(v)||0).toLocaleString("es-CL");
+  const dOpt={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>c.label+": "+money(c.parsed)}}},cutout:"62%"};
+  CHARTS.estado=new Chart($("#chEstado"),{type:"doughnut",data:{labels:["Por devolver","Devuelto"],datasets:[{data:[sp,st],backgroundColor:[AMBER,GREEN],borderColor:"#171a21",borderWidth:2}]},options:dOpt});
+  const tipos={boleta:0,factura:0};L.forEach(r=>{tipos[(r.tipo_documento==="factura")?"factura":"boleta"]+=Number(r.monto||0);});
+  CHARTS.tipo=new Chart($("#chTipo"),{type:"doughnut",data:{labels:["Boleta","Factura"],datasets:[{data:[tipos.boleta,tipos.factura],backgroundColor:[BRAND,PURP],borderColor:"#171a21",borderWidth:2}]},options:dOpt});
+  const bOpt=()=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>c.dataset.label+": "+money(c.parsed.y)}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:"#2a2f3a"},ticks:{callback:v=>money(v)}}}});
+  const sups=[...new Set(L.map(r=>r.supervisor_nombre))];
+  CHARTS.sup=new Chart($("#chSup"),{type:"bar",data:{labels:sups.map(shortEmail),datasets:[
+    {label:"Por devolver",data:sups.map(n=>sum(pend.filter(r=>r.supervisor_nombre===n))),backgroundColor:AMBER},
+    {label:"Devuelto",data:sups.map(n=>sum(trans.filter(r=>r.supervisor_nombre===n))),backgroundColor:GREEN}]},options:bOpt()});
+  const meses={};L.forEach(r=>{const m=(r.fecha_compra||"").slice(0,7);if(!m)return;meses[m]=meses[m]||{p:0,t:0};if(r.estado==="transferido")meses[m].t+=Number(r.monto||0);else meses[m].p+=Number(r.monto||0);});
+  const mk=Object.keys(meses).sort();
+  CHARTS.mes=new Chart($("#chMes"),{type:"bar",data:{labels:mk.map(mesLabel),datasets:[
+    {label:"Por devolver",data:mk.map(m=>meses[m].p),backgroundColor:AMBER},
+    {label:"Devuelto",data:mk.map(m=>meses[m].t),backgroundColor:GREEN}]},options:bOpt()});
 }
 
 function refreshSupLists(){
   const names=[...new Set(RECS.map(r=>r.supervisor_nombre))].sort();
   $("#supervisores").innerHTML=names.map(n=>`<option value="${n}">`).join("");
   $("#filtSup").innerHTML='<option value="">Todos</option>'+names.map(n=>`<option>${n}</option>`).join("");
+  const ds=$("#dashSup");
+  if(ds){const cur=ds.value;ds.innerHTML='<option value="">Todos</option>'+names.map(n=>`<option>${n}</option>`).join("");ds.value=cur;}
 }
 
 async function load(){
@@ -570,6 +624,8 @@ async function load(){
 }
 
 ["filtEstado","filtSup","filtTexto"].forEach(id=>$("#"+id).oninput=render);
+["dashSup","dashDesde","dashHasta"].forEach(id=>{const el=$("#"+id);if(el)el.onchange=renderDash;});
+$("#dashReset")&&($("#dashReset").onclick=()=>{$("#dashSup").value="";$("#dashDesde").value="";$("#dashHasta").value="";renderDash();});
 $("#btnRefrescar").onclick=load;
 
 // ===== Informe mensual (PDF) =====
