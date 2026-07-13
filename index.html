@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Rendiciones de Compras · Ngenco / Soil</title>
+<title>Rendiciones de Compras · Ngenco SpA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -12,28 +12,30 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
-    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
-    --txt:#e8ebf0; --muted:#9aa3b2; --brand:#2f6df6; --brand2:#1e4fd1;
-    --green:#16a34a; --green-bg:#0e2a1a; --amber:#d98a00; --amber-bg:#2a2110;
-    --red:#e5484d; --radius:14px; --shadow:0 8px 30px rgba(0,0,0,.35);
+    --bg:#eef2f8; --panel:#ffffff; --panel2:#f2f5fb; --line:#e2e8f0;
+    --txt:#1e2540; --muted:#64748b; --brand:#142e84; --brand2:#0f1f5c;
+    --green:#15803d; --green-bg:#e7f6ee; --amber:#b45309; --amber-bg:#fdf1e0;
+    --red:#dc2626; --radius:14px; --shadow:0 6px 22px rgba(20,46,132,.10);
   }
   *{box-sizing:border-box}
   body{margin:0;font-family:'Inter',system-ui,sans-serif;background:
-    radial-gradient(1200px 600px at 80% -10%, #1b2030 0%, transparent 60%),
+    radial-gradient(1200px 600px at 80% -12%, #dbe4f6 0%, transparent 60%),
     var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased}
   a{color:var(--brand)}
   .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 80px}
   header.topbar{display:flex;align-items:center;gap:14px;padding:6px 2px 18px}
-  .logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,var(--brand),#5b8bff);
-    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;box-shadow:var(--shadow)}
-  .brand h1{font-size:17px;margin:0;letter-spacing:.2px}
+  .logo{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,var(--brand),#2c4bb0);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;color:#fff;box-shadow:var(--shadow)}
+  .brandlogo{height:44px;width:auto;display:block}
+  .login-card .brandlogo{height:56px;margin:0 auto 14px}
+  .brand h1{font-size:17px;margin:0;letter-spacing:.2px;color:var(--brand)}
   .brand p{margin:2px 0 0;font-size:12px;color:var(--muted)}
   .spacer{flex:1}
   .pill{font-size:11px;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:999px}
 
   .tabs{display:flex;gap:6px;background:var(--panel);padding:6px;border-radius:12px;border:1px solid var(--line);margin-bottom:18px;position:sticky;top:10px;z-index:20;backdrop-filter:blur(8px)}
   .tab{flex:1;text-align:center;padding:11px 8px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted);user-select:none;transition:.15s}
-  .tab.active{background:var(--brand);color:#fff;box-shadow:0 4px 14px rgba(47,109,246,.4)}
+  .tab.active{background:var(--brand);color:#fff;box-shadow:0 4px 14px rgba(20,46,132,.35)}
   .tab:hover:not(.active){color:var(--txt);background:var(--panel2)}
 
   .grid{display:grid;gap:14px}
@@ -51,7 +53,7 @@
   label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:0 0 6px}
   input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
     padding:11px 12px;border-radius:10px;font-size:14px;font-family:inherit;outline:none;transition:.15s}
-  input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,109,246,.15)}
+  input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(20,46,132,.14)}
   textarea{resize:vertical;min-height:64px}
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:680px){.form-grid{grid-template-columns:1fr}}
@@ -65,7 +67,7 @@
   .btn.sm{padding:8px 12px;font-size:13px}
 
   .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel2)}
-  .dropzone:hover{border-color:var(--brand);background:#1b2230}
+  .dropzone:hover{border-color:var(--brand);background:#eaf0fb}
   .dropzone.has{padding:8px}
   .dropzone img{max-height:180px;border-radius:8px;display:block;margin:0 auto}
 
@@ -82,8 +84,8 @@
   .rec .name{font-weight:700;font-size:15px}
   .rec .actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
   .badge{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;display:inline-block}
-  .badge.pend{background:var(--amber-bg);color:var(--amber);border:1px solid #5a4410}
-  .badge.trans{background:var(--green-bg);color:#4ade80;border:1px solid #1c5132}
+  .badge.pend{background:var(--amber-bg);color:var(--amber);border:1px solid #f3d3a3}
+  .badge.trans{background:var(--green-bg);color:var(--green);border:1px solid #bfe6cd}
 
   .empty{text-align:center;padding:50px 20px;color:var(--muted)}
   .empty .ico{font-size:40px;margin-bottom:10px}
@@ -114,7 +116,7 @@
 
   /* login */
   #loginScreen{position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;padding:18px;
-    background:radial-gradient(900px 500px at 50% -10%, #1b2030 0%, transparent 60%), var(--bg)}
+    background:radial-gradient(900px 500px at 50% -10%, #dbe4f6 0%, transparent 60%), var(--bg)}
   .login-card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:30px 26px;max-width:380px;width:100%;box-shadow:var(--shadow)}
   .login-card .logo{margin:0 auto 14px}
   .login-card h2{text-align:center;margin:0 0 4px;font-size:20px}
@@ -129,9 +131,9 @@
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-card">
-    <div class="logo">N</div>
+    <img class="brandlogo" src="https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png" alt="Ngenco SpA">
     <h2>Rendiciones de Compras</h2>
-    <p class="sub">Ngenco SpA · Soil Limitada</p>
+    <p class="sub">Ngenco SpA</p>
     <form id="formLogin">
       <label>Correo</label>
       <input id="loginEmail" type="email" placeholder="tu@correo.cl" autocomplete="username" required>
@@ -146,10 +148,10 @@
 
 <div class="wrap" id="appWrap" style="display:none">
   <header class="topbar">
-    <div class="logo">N</div>
+    <img class="brandlogo" src="https://static.wixstatic.com/media/7a475d_acd05af9d6a74db692221e7dd7ed3805~mv2.png" alt="Ngenco SpA">
     <div class="brand">
       <h1>Rendiciones de Compras</h1>
-      <p>Ngenco SpA · Soil Limitada — Control de boletas y devoluciones</p>
+      <p>Ngenco SpA — Control de boletas y devoluciones</p>
     </div>
     <div class="spacer"></div>
     <div class="usermenu">
@@ -588,15 +590,15 @@ function renderDash(){
   $("#kpiTotCount").textContent=L.length+" registro(s)";
   $("#kpiSup").textContent=[...new Set(L.map(r=>r.supervisor_nombre))].length;
   if(typeof Chart==="undefined")return;
-  Chart.defaults.color="#9aa3b2";Chart.defaults.font.family="Inter, system-ui, sans-serif";
+  Chart.defaults.color="#475569";Chart.defaults.font.family="Inter, system-ui, sans-serif";
   destroyCharts();
-  const AMBER="#d98a00",GREEN="#16a34a",BRAND="#2f6df6",PURP="#8b5cf6";
+  const AMBER="#d98a00",GREEN="#16a34a",BRAND="#2c4bb0",PURP="#8b5cf6";
   const money=v=>"$ "+Math.round(Number(v)||0).toLocaleString("es-CL");
   const dOpt={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>c.label+": "+money(c.parsed)}}},cutout:"62%"};
-  CHARTS.estado=new Chart($("#chEstado"),{type:"doughnut",data:{labels:["Por devolver","Devuelto"],datasets:[{data:[sp,st],backgroundColor:[AMBER,GREEN],borderColor:"#171a21",borderWidth:2}]},options:dOpt});
+  CHARTS.estado=new Chart($("#chEstado"),{type:"doughnut",data:{labels:["Por devolver","Devuelto"],datasets:[{data:[sp,st],backgroundColor:[AMBER,GREEN],borderColor:"#ffffff",borderWidth:2}]},options:dOpt});
   const tipos={boleta:0,factura:0};L.forEach(r=>{tipos[(r.tipo_documento==="factura")?"factura":"boleta"]+=Number(r.monto||0);});
-  CHARTS.tipo=new Chart($("#chTipo"),{type:"doughnut",data:{labels:["Boleta","Factura"],datasets:[{data:[tipos.boleta,tipos.factura],backgroundColor:[BRAND,PURP],borderColor:"#171a21",borderWidth:2}]},options:dOpt});
-  const bOpt=()=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>c.dataset.label+": "+money(c.parsed.y)}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:"#2a2f3a"},ticks:{callback:v=>money(v)}}}});
+  CHARTS.tipo=new Chart($("#chTipo"),{type:"doughnut",data:{labels:["Boleta","Factura"],datasets:[{data:[tipos.boleta,tipos.factura],backgroundColor:[BRAND,PURP],borderColor:"#ffffff",borderWidth:2}]},options:dOpt});
+  const bOpt=()=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>c.dataset.label+": "+money(c.parsed.y)}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:"#e2e8f0"},ticks:{callback:v=>money(v)}}}});
   const sups=[...new Set(L.map(r=>r.supervisor_nombre))];
   CHARTS.sup=new Chart($("#chSup"),{type:"bar",data:{labels:sups.map(shortEmail),datasets:[
     {label:"Por devolver",data:sups.map(n=>sum(pend.filter(r=>r.supervisor_nombre===n))),backgroundColor:AMBER},
